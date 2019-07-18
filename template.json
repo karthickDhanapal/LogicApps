@@ -1,0 +1,224 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workflows_WorkflowActionSocialMedia_name": {
+            "defaultValue": "WorkflowActionSocialMedia",
+            "type": "String"
+        },
+        "connections_commondataservice_externalid": {
+            "defaultValue": "/subscriptions/6ee3a396-73ab-4181-ab9b-38a90ad49b47/resourceGroups/Sony/providers/Microsoft.Web/connections/commondataservice",
+            "type": "String"
+        },
+        "connections_gmail_externalid": {
+            "defaultValue": "/subscriptions/6ee3a396-73ab-4181-ab9b-38a90ad49b47/resourceGroups/Sony/providers/Microsoft.Web/connections/gmail",
+            "type": "String"
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[parameters('workflows_WorkflowActionSocialMedia_name')]",
+            "location": "eastasia",
+            "properties": {
+                "state": "Disabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "When_a_new_email_arrives": {
+                            "recurrence": {
+                                "frequency": "Minute",
+                                "interval": 3
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['gmail']['connectionId']"
+                                    }
+                                },
+                                "method": "get",
+                                "path": "/Mail/OnNewEmail",
+                                "queries": {
+                                    "fetchOnlyWithAttachments": false,
+                                    "importance": "All",
+                                    "includeAttachments": false,
+                                    "label": "INBOX",
+                                    "starred": "All"
+                                }
+                            }
+                        }
+                    },
+                    "actions": {
+                        "For_each": {
+                            "foreach": "@body('Parse_JSON')?['B']?['C']",
+                            "actions": {
+                                "Send_email_2": {
+                                    "runAfter": {},
+                                    "type": "ApiConnection",
+                                    "inputs": {
+                                        "body": {
+                                            "Body": "@{items('For_each')?['Field1']}@{items('For_each')?['Field2']}",
+                                            "To": "karthickd.tech@gmail.com"
+                                        },
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['gmail']['connectionId']"
+                                            }
+                                        },
+                                        "method": "post",
+                                        "path": "/Mail"
+                                    }
+                                }
+                            },
+                            "runAfter": {
+                                "For_each_2": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Foreach"
+                        },
+                        "For_each_2": {
+                            "foreach": "@body('Parse_JSON')?['B']?['C']",
+                            "actions": {
+                                "Delete_a_record": {
+                                    "runAfter": {},
+                                    "type": "ApiConnection",
+                                    "inputs": {
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['commondataservice']['connectionId']"
+                                            }
+                                        },
+                                        "method": "delete",
+                                        "path": "/datasets/@{encodeURIComponent(encodeURIComponent('org7499caf4.crm5'))}/tables/@{encodeURIComponent(encodeURIComponent('new_mon_noteses'))}/items/@{encodeURIComponent(encodeURIComponent(items('For_each_2')?['Field1']))}"
+                                    }
+                                }
+                            },
+                            "runAfter": {
+                                "Parse_JSON": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Foreach"
+                        },
+                        "Initialize_variable": {
+                            "runAfter": {
+                                "Send_email": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "MyJsonObject",
+                                        "type": "Object",
+                                        "value": {
+                                            "A": {},
+                                            "B": {
+                                                "C": [
+                                                    {
+                                                        "Field1": "hi",
+                                                        "Field2": "Karthick"
+                                                    },
+                                                    {
+                                                        "Field1": "Guna",
+                                                        "Field2": "Sathish"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        "Parse_JSON": {
+                            "runAfter": {
+                                "Initialize_variable": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ParseJson",
+                            "inputs": {
+                                "content": "@variables('MyJsonObject')",
+                                "schema": {
+                                    "properties": {
+                                        "A": {
+                                            "properties": {},
+                                            "type": "object"
+                                        },
+                                        "B": {
+                                            "properties": {
+                                                "C": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "Field1": {},
+                                                            "Field2": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "Field1",
+                                                            "Field2"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "Send_email": {
+                            "runAfter": {},
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": {
+                                    "To": "lakshmidhanapal03@gmail.com"
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['gmail']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "path": "/Mail"
+                            }
+                        }
+                    },
+                    "outputs": {}
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "commondataservice": {
+                                "connectionId": "[parameters('connections_commondataservice_externalid')]",
+                                "connectionName": "commondataservice",
+                                "id": "/subscriptions/6ee3a396-73ab-4181-ab9b-38a90ad49b47/providers/Microsoft.Web/locations/eastasia/managedApis/commondataservice"
+                            },
+                            "gmail": {
+                                "connectionId": "[parameters('connections_gmail_externalid')]",
+                                "connectionName": "gmail",
+                                "id": "/subscriptions/6ee3a396-73ab-4181-ab9b-38a90ad49b47/providers/Microsoft.Web/locations/eastasia/managedApis/gmail"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
